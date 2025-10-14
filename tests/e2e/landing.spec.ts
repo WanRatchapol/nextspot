@@ -27,7 +27,7 @@ test.describe('Landing Page', () => {
     await expect(page.getByText('รับรายการสถานที่')).toBeVisible();
 
     // Check CTA button
-    const ctaButton = page.getByRole('button', { name: /เริ่มต้นเลือกสถานที่/ });
+    const ctaButton = page.getByTestId('cta');
     await expect(ctaButton).toBeVisible();
     await expect(ctaButton).toBeEnabled();
 
@@ -42,7 +42,7 @@ test.describe('Landing Page', () => {
     expect(viewportSize?.height).toBe(844);
 
     // Check that text is readable and elements are properly sized
-    const ctaButton = page.getByRole('button', { name: /เริ่มต้นเลือกสถานที่/ });
+    const ctaButton = page.getByTestId('cta');
     const buttonBox = await ctaButton.boundingBox();
 
     // Ensure button meets minimum touch target size (44px)
@@ -60,7 +60,7 @@ test.describe('Landing Page', () => {
     });
 
     // Click CTA button
-    const ctaButton = page.getByRole('button', { name: /เริ่มต้นเลือกสถานที่/ });
+    const ctaButton = page.getByTestId('cta');
     await ctaButton.click();
 
     // Verify navigation to preferences page
@@ -113,7 +113,7 @@ test.describe('Landing Page', () => {
 
     // Check that main content is visible (indicating page is interactive)
     await expect(page.getByRole('heading', { name: 'NextSpot' })).toBeVisible();
-    await expect(page.getByRole('button', { name: /เริ่มต้นเลือกสถานที่/ })).toBeVisible();
+    await expect(page.getByTestId('cta')).toBeVisible();
 
     const loadTime = Date.now() - startTime;
 
@@ -124,13 +124,13 @@ test.describe('Landing Page', () => {
 
   test('should handle back navigation from preferences page', async ({ page }) => {
     // Go to preferences page first
-    const ctaButton = page.getByRole('button', { name: /เริ่มต้นเลือกสถานที่/ });
+    const ctaButton = page.getByTestId('cta');
     await ctaButton.click();
 
     await expect(page).toHaveURL('/prefs');
 
     // Click back button on preferences page (arrow button in header)
-    const backButton = page.locator('button').first(); // First button should be the back arrow
+    const backButton = page.getByTestId('prefs-back');
     await backButton.click();
 
     // Should be back to landing page
@@ -152,7 +152,7 @@ test.describe('Landing Page', () => {
     await expect(page.getByRole('heading', { name: 'NextSpot' })).toBeVisible();
 
     // 2. Click CTA button (fires cta_click)
-    const ctaButton = page.getByRole('button', { name: /เริ่มต้นเลือกสถานที่/ });
+    const ctaButton = page.getByTestId('cta');
     await ctaButton.click();
 
     // 3. Navigate to prefs page (fires prefs_view)
@@ -160,13 +160,13 @@ test.describe('Landing Page', () => {
     await expect(page.getByRole('heading', { name: 'ตั้งค่าความต้องการ' })).toBeVisible();
 
     // 4. Fill out preferences form
-    await page.getByText('ปานกลาง').locator('..').locator('..').click(); // Budget
-    await page.getByText('ชิลๆ').locator('..').click(); // Mood
-    await page.getByText('กิน').locator('..').click(); // Another mood
-    await page.getByText('ครึ่งวัน').locator('..').locator('..').click(); // Time
+    await page.getByTestId('budget-mid').click(); // Budget
+    await page.getByTestId('mood-chill').click(); // Mood
+    await page.getByTestId('mood-foodie').click(); // Another mood
+    await page.getByTestId('time-halfday').click(); // Time
 
     // 5. Submit preferences (fires prefs_submit)
-    const submitButton = page.getByRole('button', { name: /ดูสถานที่แนะนำ/ });
+    const submitButton = page.getByTestId('prefs-submit');
     await expect(submitButton).toBeEnabled();
     await submitButton.click();
 
@@ -209,7 +209,7 @@ test.describe('Landing Page', () => {
     await expect(h1.first()).toBeVisible();
 
     // Check that interactive elements are keyboard accessible
-    const ctaButton = page.getByRole('button', { name: /เริ่มต้นเลือกสถานที่/ });
+    const ctaButton = page.getByTestId('cta');
     await ctaButton.focus();
 
     // Verify the button is focused

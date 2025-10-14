@@ -5,8 +5,6 @@ export const metadata: Metadata = {
   title: 'NextSpot - ค้นหาสถานที่ที่ใช่สำหรับคุณ',
   description: 'Find your perfect spot in Bangkok by swiping. Quick travel recommendations for Thai university students.',
   keywords: ['travel', 'bangkok', 'recommendations', 'university', 'students'],
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
-  themeColor: '#6366f1',
 };
 
 export default function RootLayout({
