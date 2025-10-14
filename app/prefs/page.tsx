@@ -67,6 +67,39 @@ export default function PreferencesPage() {
     setSubmitting(true);
 
     try {
+      // Call API to save preferences
+      if (sessionId) {
+        const response = await fetch(`/api/sessions/${sessionId}/preferences`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            budgetBand: result.data.budgetBand,
+            moodTags: result.data.moodTags,
+            timeWindow: result.data.timeWindow,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('API Error:', errorData);
+
+          // Handle API validation errors
+          if (response.status === 400 && errorData.error) {
+            setValidationErrors({
+              general: errorData.error.message
+            });
+            return;
+          }
+
+          throw new Error(`API Error: ${response.status}`);
+        }
+
+        const apiResponse = await response.json();
+        console.log('Preferences saved successfully:', apiResponse);
+      }
+
       // Fire analytics event
       firePrefsSubmit(
         result.data.budgetBand,
@@ -79,8 +112,11 @@ export default function PreferencesPage() {
       router.push('/recs' as any);
     } catch (error) {
       console.error('Error submitting preferences:', error);
-      // Still navigate even if analytics fails
-      router.push('/recs' as any);
+
+      // Show error message to user
+      setValidationErrors({
+        general: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองอีกครั้ง'
+      });
     } finally {
       setSubmitting(false);
     }
@@ -288,6 +324,12 @@ export default function PreferencesPage() {
             {!isValid() && (
               <p className="text-gray-500 text-sm text-center mt-3">
                 กรุณาเลือกครบทุกหัวข้อ
+              </p>
+            )}
+
+            {validationErrors.general && (
+              <p className="text-red-500 text-sm text-center mt-3" data-testid="err-general">
+                {validationErrors.general}
               </p>
             )}
           </motion.div>
