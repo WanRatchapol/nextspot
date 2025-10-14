@@ -39,8 +39,10 @@ export default function PreferencesPage() {
     if (sidCookie) {
       setSessionId(sidCookie.split('=')[1]);
     }
+  }, []);
 
-    // Fire analytics event
+  useEffect(() => {
+    // Fire analytics event once after sessionId is set
     firePrefsView(sessionId || undefined);
   }, [sessionId]);
 
@@ -65,6 +67,39 @@ export default function PreferencesPage() {
     setSubmitting(true);
 
     try {
+      // Call API to save preferences
+      if (sessionId) {
+        const response = await fetch(`/api/sessions/${sessionId}/preferences`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            budgetBand: result.data.budgetBand,
+            moodTags: result.data.moodTags,
+            timeWindow: result.data.timeWindow,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('API Error:', errorData);
+
+          // Handle API validation errors
+          if (response.status === 400 && errorData.error) {
+            setValidationErrors({
+              general: errorData.error.message
+            });
+            return;
+          }
+
+          throw new Error(`API Error: ${response.status}`);
+        }
+
+        const apiResponse = await response.json();
+        console.log('Preferences saved successfully:', apiResponse);
+      }
+
       // Fire analytics event
       firePrefsSubmit(
         result.data.budgetBand,
@@ -77,8 +112,11 @@ export default function PreferencesPage() {
       router.push('/recs' as any);
     } catch (error) {
       console.error('Error submitting preferences:', error);
-      // Still navigate even if analytics fails
-      router.push('/recs' as any);
+
+      // Show error message to user
+      setValidationErrors({
+        general: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองอีกครั้ง'
+      });
     } finally {
       setSubmitting(false);
     }
@@ -97,6 +135,7 @@ export default function PreferencesPage() {
           >
             <button
               onClick={() => router.back()}
+              data-testid="prefs-back"
               className="absolute left-4 top-6 p-2 text-gray-600 hover:text-gray-800 transition-colors"
               style={{ minHeight: '44px', minWidth: '44px' }}
             >
@@ -133,6 +172,7 @@ export default function PreferencesPage() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.4, delay: 0.1 + index * 0.1 }}
                   onClick={() => setBudgetBand(option.id)}
+                  data-testid={`budget-${option.id}`}
                   className={`w-full p-4 rounded-xl border-2 transition-all duration-200 text-left ${
                     budgetBand === option.id
                       ? 'border-indigo-500 bg-indigo-50 shadow-md'
@@ -157,7 +197,7 @@ export default function PreferencesPage() {
               ))}
             </div>
             {validationErrors.budgetBand && (
-              <p className="text-red-500 text-sm mt-2">
+              <p className="text-red-500 text-sm mt-2" data-testid="err-budgetBand">
                 {validationErrors.budgetBand}
               </p>
             )}
@@ -180,6 +220,7 @@ export default function PreferencesPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.4, delay: 0.2 + index * 0.05 }}
                   onClick={() => toggleMoodTag(mood.id)}
+                  data-testid={`mood-${mood.id}`}
                   className={`p-4 rounded-xl border-2 transition-all duration-200 text-center ${
                     moodTags.includes(mood.id)
                       ? 'border-indigo-500 bg-indigo-50 shadow-md scale-95'
@@ -198,7 +239,7 @@ export default function PreferencesPage() {
               ))}
             </div>
             {validationErrors.moodTags && (
-              <p className="text-red-500 text-sm mt-2">
+              <p className="text-red-500 text-sm mt-2" data-testid="err-moodTags">
                 {validationErrors.moodTags}
               </p>
             )}
@@ -221,6 +262,7 @@ export default function PreferencesPage() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.4, delay: 0.3 + index * 0.1 }}
                   onClick={() => setTimeWindow(option.id)}
+                  data-testid={`time-${option.id}`}
                   className={`w-full p-4 rounded-xl border-2 transition-all duration-200 text-left ${
                     timeWindow === option.id
                       ? 'border-indigo-500 bg-indigo-50 shadow-md'
@@ -245,7 +287,7 @@ export default function PreferencesPage() {
               ))}
             </div>
             {validationErrors.timeWindow && (
-              <p className="text-red-500 text-sm mt-2">
+              <p className="text-red-500 text-sm mt-2" data-testid="err-timeWindow">
                 {validationErrors.timeWindow}
               </p>
             )}
@@ -261,6 +303,7 @@ export default function PreferencesPage() {
             <button
               onClick={handleSubmit}
               disabled={!isValid() || isSubmitting}
+              data-testid="prefs-submit"
               className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-medium py-4 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none disabled:hover:shadow-lg transition-all duration-200 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:cursor-not-allowed"
               style={{
                 minHeight: '44px',
@@ -281,6 +324,12 @@ export default function PreferencesPage() {
             {!isValid() && (
               <p className="text-gray-500 text-sm text-center mt-3">
                 กรุณาเลือกครบทุกหัวข้อ
+              </p>
+            )}
+
+            {validationErrors.general && (
+              <p className="text-red-500 text-sm text-center mt-3" data-testid="err-general">
+                {validationErrors.general}
               </p>
             )}
           </motion.div>

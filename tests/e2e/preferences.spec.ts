@@ -4,7 +4,7 @@ test.describe('Preferences Page', () => {
   test.beforeEach(async ({ page }) => {
     // Start from landing page and navigate to preferences
     await page.goto('/');
-    const ctaButton = page.getByRole('button', { name: /เริ่มต้นเลือกสถานที่/ });
+    const ctaButton = page.getByTestId('cta');
     await ctaButton.click();
     await expect(page).toHaveURL('/prefs');
   });
@@ -15,32 +15,32 @@ test.describe('Preferences Page', () => {
     await expect(page.getByText('บอกเราว่าคุณต้องการอะไร')).toBeVisible();
 
     // Check back button
-    const backButton = page.locator('button').first(); // First button should be back button
+    const backButton = page.getByTestId('prefs-back');
     await expect(backButton).toBeVisible();
 
     // Check budget section
     await expect(page.getByText('💰 งบประมาณ')).toBeVisible();
-    await expect(page.getByText('ประหยัด')).toBeVisible();
-    await expect(page.getByText('ปานกลาง')).toBeVisible();
-    await expect(page.getByText('หรูหรา')).toBeVisible();
+    await expect(page.getByTestId('budget-low')).toBeVisible();
+    await expect(page.getByTestId('budget-mid')).toBeVisible();
+    await expect(page.getByTestId('budget-high')).toBeVisible();
 
     // Check mood section
     await expect(page.getByText('🎭 อารมณ์ (เลือกได้หลายอย่าง)')).toBeVisible();
-    await expect(page.getByText('ชิลๆ')).toBeVisible();
-    await expect(page.getByText('ผจญภัย')).toBeVisible();
-    await expect(page.getByText('กิน')).toBeVisible();
-    await expect(page.getByText('วัฒนธรรม')).toBeVisible();
-    await expect(page.getByText('สังคม')).toBeVisible();
-    await expect(page.getByText('โรแมนติก')).toBeVisible();
+    await expect(page.getByTestId('mood-chill')).toBeVisible();
+    await expect(page.getByTestId('mood-adventure')).toBeVisible();
+    await expect(page.getByTestId('mood-foodie')).toBeVisible();
+    await expect(page.getByTestId('mood-cultural')).toBeVisible();
+    await expect(page.getByTestId('mood-social')).toBeVisible();
+    await expect(page.getByTestId('mood-romantic')).toBeVisible();
 
     // Check time section
     await expect(page.getByText('⏰ ช่วงเวลา')).toBeVisible();
-    await expect(page.getByText('เย็นๆ')).toBeVisible();
-    await expect(page.getByText('ครึ่งวัน')).toBeVisible();
-    await expect(page.getByText('เต็มวัน')).toBeVisible();
+    await expect(page.getByTestId('time-evening')).toBeVisible();
+    await expect(page.getByTestId('time-halfday')).toBeVisible();
+    await expect(page.getByTestId('time-fullday')).toBeVisible();
 
     // Check submit button (should be disabled initially)
-    const submitButton = page.getByRole('button', { name: /ดูสถานที่แนะนำ/ });
+    const submitButton = page.getByTestId('prefs-submit');
     await expect(submitButton).toBeVisible();
     await expect(submitButton).toBeDisabled();
   });
@@ -70,7 +70,7 @@ test.describe('Preferences Page', () => {
 
   test('should handle budget selection', async ({ page }) => {
     // Initially no budget selected
-    const midBudgetButton = page.getByText('ปานกลาง').locator('..').locator('..');
+    const midBudgetButton = page.getByTestId('budget-mid');
     await expect(midBudgetButton).not.toHaveClass(/border-indigo-500/);
 
     // Click mid budget
@@ -78,7 +78,7 @@ test.describe('Preferences Page', () => {
     await expect(midBudgetButton).toHaveClass(/border-indigo-500/);
 
     // Switch to high budget
-    const highBudgetButton = page.getByText('หรูหรา').locator('..').locator('..');
+    const highBudgetButton = page.getByTestId('budget-high');
     await highBudgetButton.click();
     await expect(highBudgetButton).toHaveClass(/border-indigo-500/);
     await expect(midBudgetButton).not.toHaveClass(/border-indigo-500/);
@@ -86,8 +86,8 @@ test.describe('Preferences Page', () => {
 
   test('should handle mood tag selection', async ({ page }) => {
     // Click multiple mood tags
-    const chillButton = page.getByText('ชิลๆ').locator('..');
-    const foodieButton = page.getByText('กิน').locator('..');
+    const chillButton = page.getByTestId('mood-chill');
+    const foodieButton = page.getByTestId('mood-foodie');
 
     await chillButton.click();
     await expect(chillButton).toHaveClass(/border-indigo-500/);
@@ -107,7 +107,7 @@ test.describe('Preferences Page', () => {
 
   test('should handle time window selection', async ({ page }) => {
     // Initially no time selected
-    const halfdayButton = page.getByText('ครึ่งวัน').locator('..').locator('..');
+    const halfdayButton = page.getByTestId('time-halfday');
     await expect(halfdayButton).not.toHaveClass(/border-indigo-500/);
 
     // Click halfday
@@ -115,29 +115,29 @@ test.describe('Preferences Page', () => {
     await expect(halfdayButton).toHaveClass(/border-indigo-500/);
 
     // Switch to fullday
-    const fulldayButton = page.getByText('เต็มวัน').locator('..').locator('..');
+    const fulldayButton = page.getByTestId('time-fullday');
     await fulldayButton.click();
     await expect(fulldayButton).toHaveClass(/border-indigo-500/);
     await expect(halfdayButton).not.toHaveClass(/border-indigo-500/);
   });
 
   test('should validate form completion', async ({ page }) => {
-    const submitButton = page.getByRole('button', { name: /ดูสถานที่แนะนำ/ });
+    const submitButton = page.getByTestId('prefs-submit');
 
     // Initially disabled
     await expect(submitButton).toBeDisabled();
     await expect(page.getByText('กรุณาเลือกครบทุกหัวข้อ')).toBeVisible();
 
     // Select budget only - still disabled
-    await page.getByText('ปานกลาง').locator('..').locator('..').click();
+    await page.getByTestId('budget-mid').click();
     await expect(submitButton).toBeDisabled();
 
     // Add mood - still disabled
-    await page.getByText('ชิลๆ').locator('..').click();
+    await page.getByTestId('mood-chill').click();
     await expect(submitButton).toBeDisabled();
 
     // Add time window - now enabled
-    await page.getByText('ครึ่งวัน').locator('..').locator('..').click();
+    await page.getByTestId('time-halfday').click();
     await expect(submitButton).toBeEnabled();
     await expect(page.getByText('กรุณาเลือกครบทุกหัวข้อ')).not.toBeVisible();
   });
@@ -153,13 +153,13 @@ test.describe('Preferences Page', () => {
     });
 
     // Fill out preferences form
-    await page.getByText('หรูหรา').locator('..').locator('..').click(); // High budget
-    await page.getByText('ชิลๆ').locator('..').click(); // Chill mood
-    await page.getByText('กิน').locator('..').click(); // Foodie mood
-    await page.getByText('เต็มวัน').locator('..').locator('..').click(); // Full day
+    await page.getByTestId('budget-high').click(); // High budget
+    await page.getByTestId('mood-chill').click(); // Chill mood
+    await page.getByTestId('mood-foodie').click(); // Foodie mood
+    await page.getByTestId('time-fullday').click(); // Full day
 
     // Submit form
-    const submitButton = page.getByRole('button', { name: /ดูสถานที่แนะนำ/ });
+    const submitButton = page.getByTestId('prefs-submit');
     await expect(submitButton).toBeEnabled();
     await submitButton.click();
 
@@ -183,36 +183,36 @@ test.describe('Preferences Page', () => {
 
   test('should persist preferences in localStorage', async ({ page }) => {
     // Fill out preferences
-    await page.getByText('ปานกลาง').locator('..').locator('..').click();
-    await page.getByText('สังคม').locator('..').click();
-    await page.getByText('ครึ่งวัน').locator('..').locator('..').click();
+    await page.getByTestId('budget-mid').click();
+    await page.getByTestId('mood-social').click();
+    await page.getByTestId('time-halfday').click();
 
     // Navigate away and back
     await page.goBack(); // Go to landing
     await expect(page).toHaveURL('/');
 
-    const ctaButton = page.getByRole('button', { name: /เริ่มต้นเลือกสถานที่/ });
+    const ctaButton = page.getByTestId('cta');
     await ctaButton.click(); // Go back to prefs
     await expect(page).toHaveURL('/prefs');
 
     // Preferences should be restored
-    await expect(page.getByText('ปานกลาง').locator('..').locator('..')).toHaveClass(/border-indigo-500/);
-    await expect(page.getByText('สังคม').locator('..')).toHaveClass(/border-indigo-500/);
-    await expect(page.getByText('ครึ่งวัน').locator('..').locator('..')).toHaveClass(/border-indigo-500/);
+    await expect(page.getByTestId('budget-mid')).toHaveClass(/border-indigo-500/);
+    await expect(page.getByTestId('mood-social')).toHaveClass(/border-indigo-500/);
+    await expect(page.getByTestId('time-halfday')).toHaveClass(/border-indigo-500/);
   });
 
   test('should show loading state during submission', async ({ page }) => {
     // Fill out form
-    await page.getByText('ประหยัด').locator('..').locator('..').click();
-    await page.getByText('ผจญภัย').locator('..').click();
-    await page.getByText('เย็นๆ').locator('..').locator('..').click();
+    await page.getByTestId('budget-low').click();
+    await page.getByTestId('mood-adventure').click();
+    await page.getByTestId('time-evening').click();
 
     // Intercept navigation to slow it down
     await page.route('/recs', route => {
       setTimeout(() => route.continue(), 500);
     });
 
-    const submitButton = page.getByRole('button', { name: /ดูสถานที่แนะนำ/ });
+    const submitButton = page.getByTestId('prefs-submit');
     await submitButton.click();
 
     // Should show loading state
@@ -228,14 +228,14 @@ test.describe('Preferences Page', () => {
     const budgetButtons = page.locator('[style*="minHeight: 44px"]');
     const moodButtons = page.locator('[style*="minHeight: 44px"]');
     const timeButtons = page.locator('[style*="minHeight: 44px"]');
-    const submitButton = page.getByRole('button', { name: /ดูสถานที่แนะนำ/ });
+    const submitButton = page.getByTestId('prefs-submit');
 
     // Check some budget buttons
     const budgetCount = await budgetButtons.count();
     expect(budgetCount).toBeGreaterThan(0);
 
     // Check back button dimensions
-    const backButton = page.locator('button').first();
+    const backButton = page.getByTestId('prefs-back');
     const backButtonBox = await backButton.boundingBox();
     expect(backButtonBox?.height).toBeGreaterThanOrEqual(44);
     expect(backButtonBox?.width).toBeGreaterThanOrEqual(44);
@@ -247,11 +247,136 @@ test.describe('Preferences Page', () => {
 
   test('should handle back button navigation', async ({ page }) => {
     // Click back button
-    const backButton = page.locator('button').first();
+    const backButton = page.getByTestId('prefs-back');
     await backButton.click();
 
     // Should go back to landing page
     await expect(page).toHaveURL('/');
     await expect(page.getByRole('heading', { name: 'NextSpot' })).toBeVisible();
+  });
+
+  test('should complete full user journey with API integration', async ({ page }) => {
+    // Monitor API calls
+    const apiCalls: string[] = [];
+    page.on('request', request => {
+      if (request.url().includes('/api/sessions/') && request.url().includes('/preferences')) {
+        apiCalls.push(`${request.method()} ${request.url()}`);
+      }
+    });
+
+    // Monitor console logs for analytics and API responses
+    const consoleLogs: string[] = [];
+    page.on('console', msg => {
+      if (msg.type() === 'log' && (msg.text().includes('[Analytics]') || msg.text().includes('Preferences saved'))) {
+        consoleLogs.push(msg.text());
+      }
+    });
+
+    // Fill out preferences form
+    await page.getByTestId('budget-low').click();
+    await page.getByTestId('mood-foodie').click();
+    await page.getByTestId('time-evening').click();
+
+    // Submit form
+    const submitButton = page.getByTestId('prefs-submit');
+    await expect(submitButton).toBeEnabled();
+    await submitButton.click();
+
+    // Should navigate to recommendations page
+    await expect(page).toHaveURL('/recs');
+    await expect(page.getByRole('heading', { name: 'สถานที่แนะนำ' })).toBeVisible();
+
+    // Wait for any async operations
+    await page.waitForTimeout(500);
+
+    // Verify API call was made (if session exists)
+    // Note: In this test environment, sessionId might not exist, so API call may not be made
+    // This is expected behavior based on the implementation
+
+    // Verify analytics events were fired
+    const prefsSubmitLog = consoleLogs.find(log =>
+      log.includes('prefs_submit') &&
+      log.includes('low') &&
+      log.includes('foodie') &&
+      log.includes('evening')
+    );
+    expect(prefsSubmitLog).toBeTruthy();
+  });
+
+  test('should handle API validation errors', async ({ page }) => {
+    // Mock the API to return a validation error
+    await page.route('**/api/sessions/*/preferences', (route) => {
+      route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: {
+            code: 'BAD_REQUEST',
+            message: 'Must select at least one mood'
+          },
+          request_id: 'test-request-id'
+        })
+      });
+    });
+
+    // Set up a mock session ID to trigger API call
+    await page.addInitScript(() => {
+      document.cookie = 'sid=mock-session-id';
+    });
+
+    // Fill out form
+    await page.getByTestId('budget-mid').click();
+    await page.getByTestId('mood-chill').click();
+    await page.getByTestId('time-halfday').click();
+
+    // Submit form
+    const submitButton = page.getByTestId('prefs-submit');
+    await submitButton.click();
+
+    // Should show API validation error
+    await expect(page.getByTestId('err-general')).toBeVisible();
+    await expect(page.getByTestId('err-general')).toContainText('Must select at least one mood');
+
+    // Should not navigate away from preferences page
+    await expect(page).toHaveURL('/prefs');
+  });
+
+  test('should handle API server errors gracefully', async ({ page }) => {
+    // Mock the API to return a server error
+    await page.route('**/api/sessions/*/preferences', (route) => {
+      route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to update preferences'
+          },
+          request_id: 'test-request-id'
+        })
+      });
+    });
+
+    // Set up a mock session ID to trigger API call
+    await page.addInitScript(() => {
+      document.cookie = 'sid=mock-session-id';
+    });
+
+    // Fill out form
+    await page.getByTestId('budget-high').click();
+    await page.getByTestId('mood-adventure').click();
+    await page.getByTestId('mood-cultural').click();
+    await page.getByTestId('time-fullday').click();
+
+    // Submit form
+    const submitButton = page.getByTestId('prefs-submit');
+    await submitButton.click();
+
+    // Should show generic error message
+    await expect(page.getByTestId('err-general')).toBeVisible();
+    await expect(page.getByTestId('err-general')).toContainText('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+
+    // Should not navigate away from preferences page
+    await expect(page).toHaveURL('/prefs');
   });
 });

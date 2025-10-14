@@ -1,9 +1,14 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { useRouter } from 'next/navigation';
-import { fireLandingPageView, fireCtaClick, hasActiveSession, createSession } from '@/utils/analytics';
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
+import {
+  fireLandingPageView,
+  fireCtaClick,
+  hasActiveSession,
+  createSession,
+} from "@/utils/analytics";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -16,7 +21,7 @@ export default function LandingPage() {
 
   const handleCtaClick = async () => {
     setIsCreatingSession(true);
-    fireCtaClick('เริ่มต้นเลือกสถานที่', '/prefs');
+    fireCtaClick("เริ่มต้นเลือกสถานที่", "/prefs");
 
     try {
       // Check if user already has a session
@@ -24,16 +29,16 @@ export default function LandingPage() {
         // Create a new session
         const sessionId = await createSession();
         if (!sessionId) {
-          console.error('Failed to create session, proceeding anyway');
+          console.error("Failed to create session, proceeding anyway");
         }
       }
 
       // Navigate to preferences page
-      router.push('/prefs');
+      router.push("/prefs");
     } catch (error) {
-      console.error('Error handling CTA click:', error);
+      console.error("Error handling CTA click:", error);
       // Continue to preferences page even if session creation fails
-      router.push('/prefs');
+      router.push("/prefs");
     } finally {
       setIsCreatingSession(false);
     }
@@ -53,9 +58,7 @@ export default function LandingPage() {
             <h1 className="text-2xl font-bold text-indigo-600 mb-2">
               NextSpot
             </h1>
-            <p className="text-sm text-gray-600">
-              ค้นหาสถานที่ที่ใช่สำหรับคุณ
-            </p>
+            <p className="text-sm text-gray-600">ค้นหาสถานที่ที่ใช่สำหรับคุณ</p>
           </motion.div>
         </div>
       </header>
@@ -70,7 +73,8 @@ export default function LandingPage() {
         >
           {/* Value Proposition */}
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4 thai-text leading-tight">
-            ค้นหาสถานที่ที่สมบูรณ์แบบ<br />
+            ค้นหาสถานที่ที่สมบูรณ์แบบ
+            <br />
             <span className="text-indigo-600">ใน 5 นาทีด้วยการสไลด์</span>
           </h2>
 
@@ -90,7 +94,9 @@ export default function LandingPage() {
               <div className="w-full h-24 bg-gradient-to-r from-green-400 to-blue-500"></div>
               <div className="p-3">
                 <h4 className="font-semibold text-sm">สยามสแควร์</h4>
-                <p className="text-xs text-gray-500">Shopping & Entertainment</p>
+                <p className="text-xs text-gray-500">
+                  Shopping & Entertainment
+                </p>
               </div>
 
               {/* Swipe indicator */}
@@ -102,7 +108,7 @@ export default function LandingPage() {
                 transition={{
                   duration: 2,
                   repeat: Infinity,
-                  ease: 'easeInOut',
+                  ease: "easeInOut",
                 }}
                 className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white text-2xl pointer-events-none"
               >
@@ -130,23 +136,23 @@ export default function LandingPage() {
           <div className="space-y-6 max-w-sm mx-auto">
             {[
               {
-                step: '1',
-                title: 'ตั้งค่าความต้องการ',
-                desc: 'บอกเราเกี่ยวกับงบ อารมณ์ และเวลาที่มี',
-                icon: '⚙️'
+                step: "1",
+                title: "ตั้งค่าความต้องการ",
+                desc: "บอกเราเกี่ยวกับงบ อารมณ์ และเวลาที่มี",
+                icon: "⚙️",
               },
               {
-                step: '2',
-                title: 'สไลด์เลือกสถานที่',
-                desc: 'สไลด์ขวาที่สถานที่ที่ชอบ สไลด์ซ้ายที่ไม่สนใจ',
-                icon: '📱'
+                step: "2",
+                title: "สไลด์เลือกสถานที่",
+                desc: "สไลด์ขวาที่สถานที่ที่ชอบ สไลด์ซ้ายที่ไม่สนใจ",
+                icon: "📱",
               },
               {
-                step: '3',
-                title: 'รับรายการสถานที่',
-                desc: 'ได้รับรายการสถานที่ที่คัดสรรแล้ว',
-                icon: '📍'
-              }
+                step: "3",
+                title: "รับรายการสถานที่",
+                desc: "ได้รับรายการสถานที่ที่คัดสรรแล้ว",
+                icon: "📍",
+              },
             ].map((item, index) => (
               <motion.div
                 key={index}
@@ -157,20 +163,18 @@ export default function LandingPage() {
               >
                 <div className="flex-shrink-0">
                   <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-bold text-indigo-600">{item.step}</span>
+                    <span className="text-sm font-bold text-indigo-600">
+                      {item.step}
+                    </span>
                   </div>
                 </div>
                 <div className="flex-1">
                   <h4 className="font-medium text-gray-900 mb-1 thai-text">
                     {item.title}
                   </h4>
-                  <p className="text-sm text-gray-600 thai-text">
-                    {item.desc}
-                  </p>
+                  <p className="text-sm text-gray-600 thai-text">{item.desc}</p>
                 </div>
-                <div className="text-xl">
-                  {item.icon}
-                </div>
+                <div className="text-xl">{item.icon}</div>
               </motion.div>
             ))}
           </div>
@@ -186,12 +190,13 @@ export default function LandingPage() {
           <button
             onClick={handleCtaClick}
             disabled={isCreatingSession}
+            data-testid="cta"
             className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none disabled:hover:shadow-lg transition-all duration-200 thai-text focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:cursor-not-allowed"
             style={{
-              minHeight: '44px',
-              minWidth: '44px',
-              touchAction: 'manipulation',
-              WebkitTapHighlightColor: 'transparent'
+              minHeight: "44px",
+              minWidth: "44px",
+              touchAction: "manipulation",
+              WebkitTapHighlightColor: "transparent",
             }}
           >
             {isCreatingSession ? (
@@ -200,7 +205,7 @@ export default function LandingPage() {
                 กำลังเตรียม...
               </>
             ) : (
-              '🚀 เริ่มต้นเลือกสถานที่'
+              "🚀 เริ่มต้นเลือกสถานที่"
             )}
           </button>
 
