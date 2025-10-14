@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Thai font optimization */
+@layer base {
+  html {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans Thai', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  }
+
+  body {
+    font-feature-settings: 'kern' 1;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Utilities */
+@layer utilities {
+  .thai-text {
+    line-height: 1.6;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+}

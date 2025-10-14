@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+# next
+.next/
+out/
+# tests/artifacts
+playwright-report/
+test-results/
+coverage/
+# env & local
+.env*
+*.local
+# OS/editor
+.DS_Store
+*.log
