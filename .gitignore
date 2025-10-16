@@ -13,3 +13,5 @@ coverage/
 # OS/editor
 .DS_Store
 *.log
+
+.vercel

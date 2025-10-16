@@ -56,18 +56,36 @@ async function getUserPreferences(sessionId: string): Promise<PreferencesFilter 
 }
 
 /**
- * Get popular recommendations fallback (S-06 stub)
+ * Get popular recommendations fallback (calls S-06 endpoint)
  */
 async function getPopularRecommendations(): Promise<RecommendationItem[]> {
-  // TODO: This will be implemented in S-06
-  // For now, return top rated destinations sorted by popularity
-  const popular = destinations
-    .slice()
-    .sort((a, b) => b.popularityScore - a.popularityScore)
-    .slice(0, 10)
-    .map(toRecommendationItem);
+  try {
+    // Call the new popular recommendations endpoint
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : 'http://localhost:3000';
 
-  return popular;
+    const response = await fetch(`${baseUrl}/api/recommendations/popular?limit=10`);
+
+    if (!response.ok) {
+      throw new Error(`Popular recommendations API failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.items || [];
+
+  } catch (error) {
+    console.error('Failed to fetch popular recommendations, using local fallback:', error);
+
+    // Local fallback if the API call fails
+    const popular = destinations
+      .slice()
+      .sort((a, b) => b.popularityScore - a.popularityScore)
+      .slice(0, 10)
+      .map(toRecommendationItem);
+
+    return popular;
+  }
 }
 
 /**
