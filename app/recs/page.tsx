@@ -234,7 +234,7 @@ export default function RecommendationsPage() {
                 className="mt-3 inline-block bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-xs font-medium"
                 data-testid="fast-mode-banner"
               >
-                ⚡ Fast Mode Fallback - Popular Recommendations
+                ⚡ Fast Mode: showing popular places near you
               </motion.div>
             )}
           </motion.div>
