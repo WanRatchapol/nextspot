@@ -142,7 +142,7 @@ test.describe('Preferences Page', () => {
     await expect(page.getByText('กรุณาเลือกครบทุกหัวข้อ')).not.toBeVisible();
   });
 
-  test('should complete full flow: Landing → CTA → Prefs → Submit → /recs', async ({ page }) => {
+  test('should complete full flow: Landing → CTA → Prefs → Submit → /swipe', async ({ page }) => {
     const consoleLogs: string[] = [];
 
     // Monitor console logs for analytics
@@ -163,9 +163,9 @@ test.describe('Preferences Page', () => {
     await expect(submitButton).toBeEnabled();
     await submitButton.click();
 
-    // Should navigate to recommendations page
-    await expect(page).toHaveURL('/recs');
-    await expect(page.getByRole('heading', { name: 'สถานที่แนะนำ' })).toBeVisible();
+    // Should navigate to swipe page
+    await expect(page).toHaveURL('/swipe');
+    await expect(page.getByRole('heading', { name: 'เลือกสถานที่ที่ชอบ' })).toBeVisible();
 
     // Wait for analytics events
     await page.waitForTimeout(200);
@@ -282,9 +282,9 @@ test.describe('Preferences Page', () => {
     await expect(submitButton).toBeEnabled();
     await submitButton.click();
 
-    // Should navigate to recommendations page
-    await expect(page).toHaveURL('/recs');
-    await expect(page.getByRole('heading', { name: 'สถานที่แนะนำ' })).toBeVisible();
+    // Should navigate to swipe page
+    await expect(page).toHaveURL('/swipe');
+    await expect(page.getByRole('heading', { name: 'เลือกสถานที่ที่ชอบ' })).toBeVisible();
 
     // Wait for any async operations
     await page.waitForTimeout(500);
