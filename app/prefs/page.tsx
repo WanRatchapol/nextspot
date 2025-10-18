@@ -108,8 +108,8 @@ export default function PreferencesPage() {
         sessionId || undefined
       );
 
-      // Navigate to recommendations page
-      router.push('/recs' as any);
+      // Navigate to swipe page
+      router.push('/swipe' as any);
     } catch (error) {
       console.error('Error submitting preferences:', error);
 
@@ -317,7 +317,7 @@ export default function PreferencesPage() {
                   กำลังประมวลผล...
                 </>
               ) : (
-                '🔍 ดูสถานที่แนะนำ'
+                '🃏 เริ่มเลือกสถานที่'
               )}
             </button>
 
