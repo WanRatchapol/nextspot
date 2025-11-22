@@ -20,6 +20,7 @@ export interface PreferencesState {
   setValidationErrors: (errors: Record<string, string>) => void;
   clearValidationErrors: () => void;
   resetPreferences: () => void;
+  clearPersistedData: () => void;
   getPreferences: () => Partial<UserPreferences>;
   isValid: () => boolean;
 }
@@ -86,6 +87,21 @@ export const usePreferencesStore = create<PreferencesState>()(
       },
 
       resetPreferences: () => {
+        set({
+          budgetBand: null,
+          moodTags: [],
+          timeWindow: null,
+          isSubmitting: false,
+          validationErrors: {}
+        });
+      },
+
+      clearPersistedData: () => {
+        // Clear localStorage data
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('preferences-storage');
+        }
+        // Reset store state
         set({
           budgetBand: null,
           moodTags: [],

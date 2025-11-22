@@ -19,7 +19,6 @@ export interface MoodOption {
   id: MoodTag;
   labelThai: string;
   labelEng: string;
-  icon: string;
   description: string;
 }
 
@@ -28,42 +27,36 @@ export const MOOD_OPTIONS: MoodOption[] = [
     id: 'chill',
     labelThai: 'ชิลๆ',
     labelEng: 'Chill',
-    icon: '😌',
     description: 'ผ่อนคลาย ไม่เร่งรีบ'
   },
   {
     id: 'adventure',
     labelThai: 'ผจญภัย',
     labelEng: 'Adventure',
-    icon: '🏔️',
     description: 'ตื่นเต้น เสียงดัง'
   },
   {
     id: 'foodie',
     labelThai: 'กิน',
     labelEng: 'Foodie',
-    icon: '🍜',
     description: 'หาของอร่อย'
   },
   {
     id: 'cultural',
     labelThai: 'วัฒนธรรม',
     labelEng: 'Cultural',
-    icon: '🏛️',
     description: 'เรียนรู้ ประวัติศาสตร์'
   },
   {
     id: 'social',
     labelThai: 'สังคม',
     labelEng: 'Social',
-    icon: '👥',
     description: 'พบปะเพื่อน'
   },
   {
     id: 'romantic',
     labelThai: 'โรแมนติก',
     labelEng: 'Romantic',
-    icon: '💕',
     description: 'อบอุ่น หวานใส'
   }
 ];

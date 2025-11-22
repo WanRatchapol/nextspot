@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateRequestId } from '@/utils/request-id';
-import { destinations } from '@/data/destinations.seed';
+import { prisma } from '@/lib/prisma';
 import { RecommendationItem } from '../route';
 
-// Use Edge runtime for optimal performance
-export const runtime = 'edge';
+// Use Node.js runtime for database access
+export const runtime = 'nodejs';
 
 export interface PopularRecommendationsResponse {
   items: RecommendationItem[];
@@ -19,73 +19,157 @@ export interface ErrorResponse {
   request_id: string;
 }
 
+type DatabaseDestination = {
+  id: string;
+  nameTh: string;
+  nameEn: string;
+  descTh: string;
+  imageUrl: string;
+  tags: string[];
+  budgetBand: 'LOW' | 'MID' | 'HIGH';
+  latitude?: number | null;
+  longitude?: number | null;
+  address?: string | null;
+  district?: string | null;
+};
+
 /**
- * Convert destination to recommendation item format
+ * Convert database destination to recommendation item format
  */
-function toRecommendationItem(destination: any): RecommendationItem {
+function toRecommendationItem(destination: DatabaseDestination): RecommendationItem {
   return {
     id: destination.id,
     nameTh: destination.nameTh,
     nameEn: destination.nameEn,
     descTh: destination.descTh,
     imageUrl: destination.imageUrl,
-    tags: destination.tags
+    tags: destination.tags,
+    budgetBand: destination.budgetBand.toLowerCase() as 'low' | 'mid' | 'high',
+    latitude: destination.latitude ? Number(destination.latitude) : undefined,
+    longitude: destination.longitude ? Number(destination.longitude) : undefined,
+    address: destination.address || undefined,
+    district: destination.district || undefined,
   };
 }
 
 /**
- * Filter destinations by tags (intersection - at least one tag must match)
+ * Get popular recommendations from database with optional tag filtering and duplicate prevention
  */
-function filterByTags(destinations: any[], tags: string[]): any[] {
-  if (tags.length === 0) return destinations;
-
-  return destinations.filter(destination =>
-    destination.tags.some((tag: string) => tags.includes(tag))
-  );
-}
-
-/**
- * Get popular recommendations with optional tag filtering
- */
-function getPopularRecommendations(limit: number, tags: string[] = []): RecommendationItem[] {
+async function getPopularRecommendations(limit: number, tags: string[] = [], sessionId?: string, onlyExcludeLiked = false): Promise<RecommendationItem[]> {
   const startTime = Date.now();
 
-  // Sort by popularityScore descending
-  let filtered = destinations
-    .slice()
-    .sort((a, b) => b.popularityScore - a.popularityScore);
+  try {
+    let whereClause: any = {
+      isActive: true
+    };
 
-  // Apply tag filtering if provided
-  if (tags.length > 0) {
-    filtered = filterByTags(filtered, tags);
-  }
+    // Exclude destinations that user has already swiped on
+    if (sessionId) {
+      // First, get the session to check if it belongs to an authenticated user
+      const session = await prisma.session.findUnique({
+        where: { id: sessionId },
+        select: { userId: true, isGuest: true }
+      });
 
-  // Apply limit
-  const result = filtered
-    .slice(0, limit)
-    .map(toRecommendationItem);
+      let swipeFilter: any;
 
-  const endTime = Date.now();
-  const duration = endTime - startTime;
+      if (session?.userId && !session.isGuest) {
+        // For authenticated users: exclude from ALL their sessions
+        swipeFilter = {
+          session: {
+            userId: session.userId
+          }
+        };
+        console.log(`[Popular] Filtering by user ID: ${session.userId} (authenticated)`);
+      } else {
+        // For guest users: only exclude from current session
+        swipeFilter = { sessionId };
+        console.log(`[Popular] Filtering by session ID: ${sessionId} (guest)`);
+      }
 
-  // Server-side analytics logging
-  if (process.env.NODE_ENV === 'development') {
-    const requestId = generateRequestId();
+      // If onlyExcludeLiked is true, only exclude LIKE actions, allowing SKIP to be shown again
+      if (onlyExcludeLiked) {
+        swipeFilter.action = "LIKE";
+      }
 
-    console.log('[Analytics] popular_recs_request:', {
-      limit,
-      tags: tags.join(',') || 'none',
-      request_id: requestId
+      const swipedDestinations = await prisma.swipeEvent.findMany({
+        where: swipeFilter,
+        select: { destinationId: true }
+      });
+
+      const swipedDestinationIds = swipedDestinations.map((event: any) => event.destinationId);
+
+      if (swipedDestinationIds.length > 0) {
+        whereClause.id = {
+          notIn: swipedDestinationIds
+        };
+      }
+
+      const excludeType = onlyExcludeLiked ? "liked" : "already-swiped";
+      const userType = session?.userId && !session.isGuest ? "authenticated user" : "guest session";
+      console.log(`[Popular] Excluding ${swipedDestinationIds.length} ${excludeType} destinations for ${userType} (${sessionId})`);
+      console.log(`[Popular] WHERE clause:`, whereClause);
+    }
+
+    // Apply tag filtering if provided
+    if (tags.length > 0) {
+      whereClause.tags = {
+        hasSome: tags.map(tag => tag.toLowerCase())
+      };
+    }
+
+    // Get destinations from database, ordered by popularity (using updatedAt as proxy for now)
+    const destinations = await prisma.destination.findMany({
+      where: whereClause,
+      orderBy: [
+        { updatedAt: 'desc' }, // Most recently updated = more popular
+        { createdAt: 'desc' }  // Then by creation date
+      ],
+      take: limit,
+      select: {
+        id: true,
+        nameTh: true,
+        nameEn: true,
+        descTh: true,
+        imageUrl: true,
+        tags: true,
+        budgetBand: true,
+        latitude: true,
+        longitude: true,
+        address: true,
+        district: true,
+      },
     });
 
-    console.log('[Analytics] popular_recs_response:', {
-      count: result.length,
-      ms: duration,
-      request_id: requestId
-    });
-  }
+    const result = destinations.map((dest: any) => toRecommendationItem(dest as DatabaseDestination));
 
-  return result;
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+
+    // Server-side analytics logging
+    if (process.env.NODE_ENV === 'development') {
+      const requestId = generateRequestId();
+
+      console.log('[Analytics] popular_recs_request:', {
+        limit,
+        tags: tags.join(',') || 'none',
+        sessionId: sessionId || 'none',
+        request_id: requestId
+      });
+
+      console.log('[Analytics] popular_recs_response:', {
+        count: result.length,
+        ms: duration,
+        request_id: requestId
+      });
+    }
+
+    return result;
+
+  } catch (error) {
+    console.error('Failed to fetch popular recommendations from database:', error);
+    return [];
+  }
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse<PopularRecommendationsResponse | ErrorResponse>> {
@@ -127,17 +211,21 @@ export async function GET(request: NextRequest): Promise<NextResponse<PopularRec
         .filter(tag => tag.length > 0);
     }
 
-    // Get popular recommendations
-    const items = getPopularRecommendations(limit, tags);
+    // Parse sessionId parameter for duplicate prevention
+    const sessionId = searchParams.get('sessionId');
+    const includeSkipped = searchParams.get('includeSkipped') === 'true';
+
+    // Get popular recommendations with optional session-based exclusion
+    const items = await getPopularRecommendations(limit, tags, sessionId || undefined, includeSkipped);
 
     const response: PopularRecommendationsResponse = {
       items,
       request_id: requestId
     };
 
-    // Set aggressive caching headers for Edge performance
+    // Set caching headers for database performance
     const headers = {
-      'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60',
+      'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30',
       'Content-Type': 'application/json'
     };
 

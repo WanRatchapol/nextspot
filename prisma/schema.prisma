@@ -1,0 +1,228 @@
+// Prisma schema for NextSpot Web MVP
+// This file defines the database schema for the swipe analytics backend
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Enums based on architecture document
+enum BudgetBand {
+  LOW  @map("low")
+  MID  @map("mid")
+  HIGH @map("high")
+
+  @@map("budget_band")
+}
+
+enum TimeWindow {
+  EVENING  @map("evening")
+  HALFDAY  @map("halfday")
+  FULLDAY  @map("fullday")
+
+  @@map("time_window")
+}
+
+enum MoodCategory {
+  CHILL     @map("chill")
+  ADVENTURE @map("adventure")
+  FOODIE    @map("foodie")
+  CULTURAL  @map("cultural")
+  SOCIAL    @map("social")
+  ROMANTIC  @map("romantic")
+
+  @@map("mood_category")
+}
+
+enum SwipeAction {
+  LIKE       @map("like")
+  SKIP       @map("skip")
+  DETAIL_TAP @map("detail_tap")
+
+  @@map("swipe_action")
+}
+
+enum SwipeDirection {
+  LEFT  @map("left")
+  RIGHT @map("right")
+  TAP   @map("tap")
+
+  @@map("swipe_direction")
+}
+
+enum DeviceType {
+  MOBILE  @map("mobile")
+  TABLET  @map("tablet")
+  DESKTOP @map("desktop")
+
+  @@map("device_type")
+}
+
+// User accounts for authentication
+model User {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String    @unique
+  emailVerified   DateTime? @map("email_verified")
+  name            String?
+  profileImage    String?   @map("profile_image")
+  hashedPassword  String    @map("hashed_password")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @default(now()) @map("updated_at")
+
+  // User settings
+  language        String    @default("th") // "th" or "en"
+  notificationsEnabled Boolean @default(true) @map("notifications_enabled")
+
+  // Relationships
+  sessions        Session[]
+  userPreferences UserPreferences[]
+
+  @@map("users")
+}
+
+// Core session management (now linked to users)
+model Session {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String?   @map("user_id") @db.Uuid // Optional for guest sessions
+  createdAt    DateTime  @default(now()) @map("created_at")
+  lastActiveAt DateTime  @default(now()) @map("last_active_at")
+  userAgent    String    @map("user_agent")
+  deviceType   DeviceType @map("device_type")
+
+  // Session type: guest or authenticated
+  isGuest      Boolean   @default(true) @map("is_guest")
+  expiresAt    DateTime? @map("expires_at")
+
+  // Relationships
+  user             User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  preferences      UserPreferences?
+  swipeEvents      SwipeEvent[]
+  sessionAnalytics SessionAnalytics?
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// User preferences storage (can be linked to user or session)
+model UserPreferences {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String?        @map("user_id") @db.Uuid // For authenticated users
+  sessionId  String         @unique @map("session_id") @db.Uuid // For all sessions
+  budgetBand BudgetBand     @map("budget_band")
+  timeWindow TimeWindow     @map("time_window")
+  moodTags   MoodCategory[] @map("mood_tags")
+  updatedAt  DateTime       @default(now()) @map("updated_at")
+
+  // Relationships
+  user    User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_preferences")
+}
+
+// Destination data (simplified for MVP)
+model Destination {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nameTh         String      @map("name_th")
+  nameEn         String      @map("name_en")
+  descTh         String      @map("desc_th")
+  imageUrl       String      @map("image_url")
+  budgetBand     BudgetBand  @map("budget_band")
+  tags           String[]    // Array of mood tags
+
+  // Location data for map functionality
+  latitude       Decimal?    @db.Decimal(10, 8) // Bangkok area: ~13.7563
+  longitude      Decimal?    @db.Decimal(11, 8) // Bangkok area: ~100.5018
+  address        String?     // Thai address
+  district       String?     // District/area name for grouping
+
+  isActive       Boolean     @default(true) @map("is_active")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @default(now()) @map("updated_at")
+
+  // Relationships
+  swipeEvents     SwipeEvent[]
+  swipeAnalytics  SwipeAnalytics[]
+
+  @@index([budgetBand])
+  @@index([tags])
+  @@index([isActive, updatedAt(sort: Desc)])
+  @@index([district])
+  @@index([latitude, longitude])
+  @@map("destinations")
+}
+
+// Core swipe events table for analytics (S-08 implementation)
+model SwipeEvent {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId        String          @map("session_id") @db.Uuid
+  destinationId    String          @map("destination_id") @db.Uuid
+  action           SwipeAction
+  timestamp        DateTime        @default(now())
+  direction        SwipeDirection
+  velocity         Decimal?        @db.Decimal(10, 2) // px/ms
+  durationMs       Int?            @map("duration_ms")
+  viewDurationMs   Int?            @map("view_duration_ms")
+
+  // Batch processing metadata
+  batchId          String?         @map("batch_id") @db.Uuid
+  processedAt      DateTime?       @map("processed_at")
+
+  // Relationships
+  session     Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  destination Destination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+
+  // Performance indexes for analytics queries
+  @@index([sessionId, timestamp(sort: Desc)])
+  @@index([destinationId, action])
+  @@index([timestamp(sort: Desc)])
+  @@index([batchId])
+  @@index([processedAt])
+  @@map("swipe_events")
+}
+
+// Analytics aggregation tables for performance
+model SwipeAnalytics {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  destinationId     String      @map("destination_id") @db.Uuid
+  date              DateTime    @db.Date
+  likeCount         Int         @default(0) @map("like_count")
+  skipCount         Int         @default(0) @map("skip_count")
+  detailTapCount    Int         @default(0) @map("detail_tap_count")
+  avgViewDuration   Decimal?    @map("avg_view_duration") @db.Decimal(10, 2)
+  avgSwipeVelocity  Decimal?    @map("avg_swipe_velocity") @db.Decimal(10, 2)
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @default(now()) @map("updated_at")
+
+  destination Destination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+
+  @@unique([destinationId, date])
+  @@index([date(sort: Desc)])
+  @@map("swipe_analytics")
+}
+
+// Session analytics for user behavior tracking
+model SessionAnalytics {
+  id                    String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId             String      @unique @map("session_id") @db.Uuid
+  totalSwipes           Int         @default(0) @map("total_swipes")
+  likeRate              Decimal?    @map("like_rate") @db.Decimal(5, 4) // Percentage as decimal
+  avgDecisionTime       Decimal?    @map("avg_decision_time") @db.Decimal(10, 2) // seconds
+  sessionDuration       Int?        @map("session_duration") // total session time in seconds
+  completedAt           DateTime?   @map("completed_at")
+  createdAt             DateTime    @default(now()) @map("created_at")
+  updatedAt             DateTime    @default(now()) @map("updated_at")
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([completedAt(sort: Desc)])
+  @@index([likeRate])
+  @@map("session_analytics")
+}

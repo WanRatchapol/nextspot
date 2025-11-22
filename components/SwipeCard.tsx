@@ -1,8 +1,9 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { motion, useMotionValue, useTransform, useAnimation } from 'framer-motion';
-import { useDrag } from '@use-gesture/react';
+import { useEffect, useState } from "react";
+import { motion, useMotionValue, useTransform, PanInfo } from "framer-motion";
+import { Box, Typography, Button, Chip } from "@mui/material";
+import { MapPin, DollarSign, Info } from "lucide-react";
 
 interface RecommendationItem {
   id: string;
@@ -11,197 +12,546 @@ interface RecommendationItem {
   descTh: string;
   imageUrl: string;
   tags: string[];
+  budgetBand: "low" | "mid" | "high";
 }
+
+const budgetLabels = {
+  low: "฿0-500",
+  mid: "฿500-1,500",
+  high: "฿1,500+",
+};
 
 interface SwipeCardProps {
   destination: RecommendationItem;
-  onSwipe: (direction: 'left' | 'right', destination: RecommendationItem) => void;
-  onDetailTap: (destination: RecommendationItem) => void;
-  isAnimating?: boolean;
+  onSwipe: (direction: "left" | "right") => void;
+  onDetailTap: () => void;
+  isTop?: boolean;
+  forceDirection?: "left" | "right" | null;
 }
 
-export function SwipeCard({ destination, onSwipe, onDetailTap, isAnimating = false }: SwipeCardProps) {
-  const [isDragging, setIsDragging] = useState(false);
+export function SwipeCard({
+  destination,
+  onSwipe,
+  onDetailTap,
+  isTop = false,
+  forceDirection = null,
+}: SwipeCardProps) {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const x = useMotionValue(0);
-  const rotate = useTransform(x, [-300, 300], [-30, 30]);
-  const opacity = useTransform(x, [-300, -150, 0, 150, 300], [0, 1, 1, 1, 0]);
+  const rotate = useTransform(x, [-200, 200], [-15, 15]);
 
-  // Transform for swipe indicators
-  const likeOpacity = useTransform(x, [0, 150], [0, 1]);
-  const skipOpacity = useTransform(x, [-150, 0], [1, 0]);
+  // Mock destination images for places without photos
+  const mockImages = [
+    "https://images.unsplash.com/photo-1414016642750-7fdd78dc33d9?w=800&h=600&fit=crop", // cafe
+    "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop", // restaurant
+    "https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&h=600&fit=crop", // bar
+    "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop", // outdoor
+    "https://images.unsplash.com/photo-1516979187457-637abb4f9353?w=800&h=600&fit=crop", // shopping
+    "https://images.unsplash.com/photo-1517816743773-6e0fd518b4a6?w=800&h=600&fit=crop", // venue
+  ];
 
-  const controls = useAnimation();
+  // Create images array with fallbacks
+  const images = [
+    destination.imageUrl,
+    ...mockImages.slice(0, 2), // Add 2 mock images
+  ].filter(Boolean);
 
-  const bind = useDrag(
-    ({ down, movement: [mx], velocity: [vx], direction: [dx] }) => {
-      if (isAnimating) return;
+  // Debug log for images
+  useEffect(() => {
+    console.log("SwipeCard images array:", images);
+    console.log("Current image index:", currentImageIndex);
+    console.log("Current image URL:", images[currentImageIndex]);
+  }, [images, currentImageIndex]);
 
-      const trigger = Math.abs(mx) > 100; // 100px threshold
-      const dir = dx > 0 ? 'right' : 'left';
+  const handleDragEnd = (_: any, info: PanInfo) => {
+    const threshold = 100;
+    const velocity = info.velocity.x;
 
-      setIsDragging(down);
-
-      if (!down) {
-        if (trigger) {
-          // Animate card out
-          controls.start({
-            x: dx > 0 ? 1000 : -1000,
-            opacity: 0,
-            transition: { duration: 0.3 }
-          }).then(() => {
-            onSwipe(dir, destination);
-          });
-        } else {
-          // Snap back to center
-          controls.start({
-            x: 0,
-            transition: { type: 'spring', stiffness: 500, damping: 30 }
-          });
-        }
+    // Check if user swiped with enough distance OR velocity
+    if (Math.abs(info.offset.x) > threshold || Math.abs(velocity) > 500) {
+      if (info.offset.x > 0 || velocity > 500) {
+        // Swipe right (like)
+        onSwipe("right");
       } else {
-        // Follow drag
-        controls.start({
-          x: mx,
-          transition: { type: 'tween', duration: 0 }
-        });
+        // Swipe left (nope)
+        onSwipe("left");
       }
-    },
-    {
-      axis: 'x',
-      bounds: { left: -300, right: 300 },
-      rubberband: true,
-    }
-  );
-
-  const handleCardTap = () => {
-    if (!isDragging && !isAnimating) {
-      onDetailTap(destination);
+    } else {
+      // Snap back to center if not enough swipe
+      x.set(0);
     }
   };
 
-  const handleLikeClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!isAnimating) {
-      controls.start({
-        x: 1000,
-        opacity: 0,
-        transition: { duration: 0.3 }
-      }).then(() => {
-        onSwipe('right', destination);
+  // Handle button-triggered swipes with smooth animation
+  useEffect(() => {
+    if (forceDirection) {
+      // Animate smoothly to the target position
+      const targetX = forceDirection === "right" ? 300 : -300;
+
+      // Use framer-motion's animate function for smooth movement
+      import("framer-motion").then(({ animate }) => {
+        animate(x, targetX, {
+          duration: 0.3,
+          ease: "easeOut",
+        });
       });
     }
+  }, [forceDirection, x]);
+
+  const nextImage = () => {
+    console.log(
+      "Next image clicked, current:",
+      currentImageIndex,
+      "total:",
+      images.length
+    );
+    setCurrentImageIndex((prev) => {
+      const next = (prev + 1) % images.length;
+      console.log("Moving to image index:", next);
+      return next;
+    });
   };
 
-  const handleSkipClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!isAnimating) {
-      controls.start({
-        x: -1000,
-        opacity: 0,
-        transition: { duration: 0.3 }
-      }).then(() => {
-        onSwipe('left', destination);
-      });
-    }
+  const prevImage = () => {
+    console.log(
+      "Previous image clicked, current:",
+      currentImageIndex,
+      "total:",
+      images.length
+    );
+    setCurrentImageIndex((prev) => {
+      const next = (prev - 1 + images.length) % images.length;
+      console.log("Moving to image index:", next);
+      return next;
+    });
   };
+
+  // Create motion components
+  const MotionBox = motion(Box);
+
+  // Get mood tag (first tag as mood indicator)
+  const moodTag = destination.tags[0] || "สถานที่น่าสนใจ";
 
   return (
-    <motion.div
-      {...bind()}
-      animate={controls}
-      style={{ x, rotate, opacity }}
-      initial={{ scale: 0.9, opacity: 0 }}
-      whileInView={{ scale: 1, opacity: 1 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-      className="absolute inset-0 cursor-grab active:cursor-grabbing"
-      drag={false} // We handle dragging manually for better control
+    <MotionBox
+      sx={{
+        zIndex: 11,
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        cursor: "grab",
+        "&:active": {
+          cursor: "grabbing",
+        },
+      }}
+      style={{
+        x,
+        rotate,
+      }}
+      drag={isTop && !forceDirection ? "x" : false}
+      dragConstraints={{ left: 0, right: 0 }}
+      onDragEnd={handleDragEnd}
+      whileTap={{ scale: 0.98 }}
+      exit={{
+        x:
+          forceDirection === "right"
+            ? 400
+            : forceDirection === "left"
+            ? -400
+            : 0,
+        rotate:
+          forceDirection === "right" ? 20 : forceDirection === "left" ? -20 : 0,
+        opacity: 0,
+        transition: { duration: 0.3, ease: "easeOut" },
+      }}
     >
-      <div
-        className="destination-card w-full h-full bg-white rounded-2xl shadow-xl overflow-hidden relative select-none"
-        onClick={handleCardTap}
-        style={{ touchAction: 'pan-x' }}
+      {/* Card container with full image background */}
+      <Box
+        sx={{
+          height: "calc(100vh - 200px)",
+          width: "calc(100vw - 32px)",
+          mx: "auto",
+          position: "relative",
+          borderRadius: 6,
+          overflow: "hidden",
+          boxShadow: "0 20px 40px rgba(0, 0, 0, 0.3)",
+        }}
       >
-        {/* Card Image */}
-        <div className="card-image h-[60%] relative overflow-hidden">
-          <img
-            src={destination.imageUrl}
-            alt={destination.nameEn}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              e.currentTarget.src = 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800';
+        {/* Background Image */}
+        {images.length > 0 ? (
+          <Box
+            component="img"
+            src={images[currentImageIndex]}
+            alt={destination.nameTh}
+            sx={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              zIndex: 1,
             }}
-            draggable={false}
+            onError={(e) => {
+              // Fallback to a random mock image if the main image fails
+              const randomMockImage =
+                mockImages[Math.floor(Math.random() * mockImages.length)];
+              e.currentTarget.src = randomMockImage;
+            }}
           />
-
-          {/* Swipe Indicators */}
-          <motion.div
-            style={{ opacity: likeOpacity }}
-            className="swipe-indicator like absolute top-1/2 right-5 transform -translate-y-1/2 bg-green-500 text-white px-4 py-2 rounded-lg font-bold text-lg shadow-lg"
+        ) : (
+          // Fallback gradient background
+          <Box
+            sx={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1,
+            }}
           >
-            LIKE ❤️
-          </motion.div>
+            <MapPin size={64} color="white" style={{ opacity: 0.7 }} />
+          </Box>
+        )}
 
-          <motion.div
-            style={{ opacity: skipOpacity }}
-            className="swipe-indicator skip absolute top-1/2 left-5 transform -translate-y-1/2 bg-red-500 text-white px-4 py-2 rounded-lg font-bold text-lg shadow-lg"
+        {/* Image navigation areas */}
+        {images.length > 1 && (
+          <>
+            <Box
+              component="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                prevImage();
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                prevImage();
+              }}
+              sx={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                height: "100%",
+                width: "33.333333%",
+                zIndex: 50,
+                border: "none",
+                background: "transparent",
+                cursor: "pointer",
+                WebkitTapHighlightColor: "transparent",
+                userSelect: "none",
+                outline: "none",
+                "&:focus": {
+                  outline: "none",
+                },
+                // Debug visual (remove after testing)
+                // background: "rgba(255, 0, 0, 0.1)",
+              }}
+            />
+            <Box
+              component="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                nextImage();
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                nextImage();
+              }}
+              sx={{
+                position: "absolute",
+                right: 0,
+                top: 0,
+                height: "100%",
+                width: "33.333333%",
+                zIndex: 50,
+                border: "none",
+                background: "transparent",
+                cursor: "pointer",
+                WebkitTapHighlightColor: "transparent",
+                userSelect: "none",
+                outline: "none",
+                "&:focus": {
+                  outline: "none",
+                },
+                // Debug visual (remove after testing)
+                // background: "rgba(0, 255, 0, 0.1)",
+              }}
+            />
+          </>
+        )}
+
+        {/* Image indicators */}
+        {images.length > 1 && (
+          <Box
+            sx={{
+              position: "absolute",
+              top: 16,
+              left: 16,
+              right: 16,
+              display: "flex",
+              gap: 1,
+              zIndex: 60,
+              pointerEvents: "none", // Don't interfere with image navigation
+            }}
           >
-            SKIP ✖️
-          </motion.div>
-        </div>
-
-        {/* Card Content */}
-        <div className="card-content h-[40%] p-4 flex flex-col justify-between">
-          <div>
-            <h3 className="text-xl font-bold text-gray-900 mb-1 leading-tight">
-              {destination.nameTh}
-            </h3>
-            <p className="text-sm text-gray-500 mb-2">
-              {destination.nameEn}
-            </p>
-            <p className="text-gray-700 text-sm leading-snug line-clamp-2">
-              {destination.descTh}
-            </p>
-          </div>
-
-          {/* Tags */}
-          <div className="flex flex-wrap gap-1 mt-3">
-            {destination.tags.slice(0, 3).map((tag) => (
-              <span
-                key={tag}
-                className="px-2 py-1 bg-indigo-100 text-indigo-600 text-xs rounded-full font-medium"
-              >
-                {tag}
-              </span>
+            {images.map((_, index) => (
+              <Box
+                key={index}
+                sx={{
+                  height: 4,
+                  flex: 1,
+                  borderRadius: 50,
+                  transition: "background-color 0.15s ease-in-out",
+                  backgroundColor:
+                    index === currentImageIndex
+                      ? "white"
+                      : "rgba(255, 255, 255, 0.4)",
+                }}
+              />
             ))}
-            {destination.tags.length > 3 && (
-              <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs rounded-full">
-                +{destination.tags.length - 3}
-              </span>
-            )}
-          </div>
-        </div>
+          </Box>
+        )}
 
-        {/* Action Buttons (Fallback for accessibility) */}
-        <div className="absolute bottom-4 left-4 right-4 flex justify-between opacity-0 hover:opacity-100 transition-opacity">
-          <button
-            onClick={handleSkipClick}
-            className="bg-red-500 hover:bg-red-600 text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-colors"
-            style={{ minHeight: '44px', minWidth: '44px' }}
-            aria-label="Skip this place"
-          >
-            ✖️
-          </button>
+        {/* Gradient overlay for content readability */}
+        <Box
+          sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            background:
+              "linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.3) 70%, rgba(0,0,0,0.8) 100%)",
+            zIndex: 2,
+          }}
+        />
 
-          <button
-            onClick={handleLikeClick}
-            className="bg-green-500 hover:bg-green-600 text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-colors"
-            style={{ minHeight: '44px', minWidth: '44px' }}
-            aria-label="Like this place"
+        {/* Budget badge - Top right */}
+        <Box
+          sx={{
+            position: "absolute",
+            top: 30,
+            right: 10,
+            zIndex: 30,
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              borderRadius: 50,
+              backgroundColor: "rgba(0, 0, 0, 0.7)",
+              backdropFilter: "blur(8px)",
+              px: 3,
+              py: 1.5,
+              border: "1px solid rgba(255, 255, 255, 0.2)",
+            }}
           >
-            ❤️
-          </button>
-        </div>
-      </div>
-    </motion.div>
+            <DollarSign size={16} color="white" />
+            <Typography
+              sx={{
+                fontSize: "0.875rem",
+                fontWeight: 600,
+                color: "white",
+              }}
+            >
+              {budgetLabels[destination.budgetBand]}
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* Swipe indicators */}
+        <MotionBox
+          sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 25,
+          }}
+          style={{ opacity: useTransform(x, [50, 150], [0, 1]) }}
+        >
+          <MotionBox
+            sx={{
+              borderRadius: 4,
+              backgroundColor: "#22c55e",
+              px: 6,
+              py: 3,
+              transform: "rotate(12deg)",
+              border: "4px solid white",
+              boxShadow:
+                "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+            }}
+            initial={{ scale: 0.8 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 500, damping: 25 }}
+          >
+            <Typography
+              sx={{
+                fontSize: "2rem",
+                fontWeight: 700,
+                color: "white",
+              }}
+            >
+              LIKE
+            </Typography>
+          </MotionBox>
+        </MotionBox>
+
+        <MotionBox
+          sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 25,
+          }}
+          style={{ opacity: useTransform(x, [-150, -50], [1, 0]) }}
+        >
+          <MotionBox
+            sx={{
+              borderRadius: 4,
+              backgroundColor: "#ef4444",
+              px: 6,
+              py: 3,
+              transform: "rotate(-12deg)",
+              border: "4px solid white",
+              boxShadow:
+                "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+            }}
+            initial={{ scale: 0.8 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 500, damping: 25 }}
+          >
+            <Typography
+              sx={{
+                fontSize: "2rem",
+                fontWeight: 700,
+                color: "white",
+              }}
+            >
+              NOPE
+            </Typography>
+          </MotionBox>
+        </MotionBox>
+
+        {/* Content overlay - Bottom section */}
+        <Box
+          sx={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 30,
+            px: 3,
+            pb: 6,
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+          }}
+        >
+          {/* Mood tag */}
+          <Box>
+            <Chip
+              label={moodTag}
+              size="small"
+              sx={{
+                backgroundColor: "rgba(255, 255, 255, 0.9)",
+                color: "#1f2937",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                backdropFilter: "blur(4px)",
+                border: "1px solid rgba(255, 255, 255, 0.3)",
+              }}
+            />
+          </Box>
+
+          {/* Destination name */}
+          <Box>
+            <Typography
+              variant="h4"
+              sx={{
+                fontSize: "1.75rem",
+                fontWeight: 700,
+                color: "white",
+                lineHeight: 1.2,
+                textShadow: "0 2px 4px rgba(0, 0, 0, 0.5)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+              }}
+            >
+              {destination.nameTh}
+            </Typography>
+            <Typography
+              variant="body1"
+              sx={{
+                fontSize: "1rem",
+                color: "rgba(255, 255, 255, 0.9)",
+                mt: 0.5,
+                textShadow: "0 1px 2px rgba(0, 0, 0, 0.5)",
+              }}
+            >
+              {destination.nameEn}
+            </Typography>
+          </Box>
+
+          {/* Detail button */}
+          <Box sx={{ mt: 1 }}>
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDetailTap();
+              }}
+              variant="contained"
+              startIcon={<Info size={18} />}
+              fullWidth
+              sx={{
+                height: 48,
+                borderRadius: 25,
+                backgroundColor: "rgba(255, 255, 255, 0.95)",
+                color: "#1f2937",
+                fontSize: "0.9rem",
+                fontWeight: 600,
+                textTransform: "none",
+                backdropFilter: "blur(8px)",
+                border: "1px solid rgba(255, 255, 255, 0.3)",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                "&:hover": {
+                  backgroundColor: "white",
+                  transform: "translateY(-1px)",
+                  boxShadow: "0 6px 16px rgba(0, 0, 0, 0.2)",
+                },
+                transition: "all 0.2s ease-in-out",
+              }}
+            >
+              ดูรายละเอียด
+            </Button>
+          </Box>
+        </Box>
+      </Box>
+    </MotionBox>
   );
 }

@@ -1,12 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { generateRequestId } from '@/utils/request-id';
-import { destinations, Destination } from '@/data/destinations.seed';
-import { filterDestinations, sortByPopularity, getFilterMetrics, PreferencesFilter } from '@/lib/recs/filter';
-import { applyDiversityRule } from '@/lib/recs/diversify';
-import { withCache } from '@/lib/recs/cache';
+import { NextRequest, NextResponse } from "next/server";
+import { generateRequestId } from "@/utils/request-id";
+import { prisma } from "@/lib/prisma";
 
 // Use Node.js runtime for this API route
-export const runtime = 'nodejs';
+export const runtime = "nodejs";
 
 export interface RecommendationItem {
   id: string;
@@ -15,6 +12,11 @@ export interface RecommendationItem {
   descTh: string;
   imageUrl: string;
   tags: string[];
+  budgetBand: "low" | "mid" | "high";
+  latitude?: number;
+  longitude?: number;
+  address?: string;
+  district?: string;
 }
 
 export interface RecommendationsResponse {
@@ -31,41 +33,203 @@ export interface ErrorResponse {
   request_id: string;
 }
 
+type DatabaseDestination = {
+  id: string;
+  nameTh: string;
+  nameEn: string;
+  descTh: string;
+  imageUrl: string;
+  tags: string[];
+  budgetBand: "LOW" | "MID" | "HIGH";
+  latitude?: number | null;
+  longitude?: number | null;
+  address?: string | null;
+  district?: string | null;
+};
+
 /**
- * Convert destination to recommendation item format
+ * Convert database destination to recommendation item format
  */
-function toRecommendationItem(destination: Destination): RecommendationItem {
+function toRecommendationItem(
+  destination: DatabaseDestination
+): RecommendationItem {
   return {
     id: destination.id,
     nameTh: destination.nameTh,
     nameEn: destination.nameEn,
     descTh: destination.descTh,
     imageUrl: destination.imageUrl,
-    tags: destination.tags
+    tags: destination.tags,
+    budgetBand: destination.budgetBand.toLowerCase() as "low" | "mid" | "high",
+    latitude: destination.latitude ? Number(destination.latitude) : undefined,
+    longitude: destination.longitude ? Number(destination.longitude) : undefined,
+    address: destination.address || undefined,
+    district: destination.district || undefined,
   };
 }
 
 /**
- * Get user preferences from session API (stub for now)
+ * Get user preferences from database
  */
-async function getUserPreferences(sessionId: string): Promise<PreferencesFilter | null> {
-  // TODO: In real implementation, this would call the preferences API
-  // For now, return default preferences for demo purposes
-  // This is a placeholder that will be replaced when session storage is implemented
-  return null;
+async function getUserPreferences(sessionId: string) {
+  try {
+    const preferences = await prisma.userPreferences.findUnique({
+      where: { sessionId },
+    });
+
+    if (!preferences) {
+      return null;
+    }
+
+    return {
+      budgetBand: preferences.budgetBand.toLowerCase(),
+      timeWindow: preferences.timeWindow.toLowerCase(),
+      moodTags: preferences.moodTags.map((tag) => tag.toLowerCase()),
+    };
+  } catch (error) {
+    console.error("Failed to fetch user preferences:", error);
+    return null;
+  }
 }
 
 /**
- * Get popular recommendations fallback (calls S-06 endpoint)
+ * Get destinations from database with optional filtering and exclude already swiped destinations
  */
-async function getPopularRecommendations(): Promise<RecommendationItem[]> {
+async function getDestinationsFromDatabase(
+  preferences?: any,
+  sessionId?: string,
+  onlyExcludeLiked = false
+): Promise<RecommendationItem[]> {
   try {
-    // Call the new popular recommendations endpoint
+    let whereClause: any = {
+      isActive: true,
+    };
+
+    // Exclude destinations that user has already swiped on
+    if (sessionId) {
+      // First, get the session to check if it belongs to an authenticated user
+      const session = await prisma.session.findUnique({
+        where: { id: sessionId },
+        select: { userId: true, isGuest: true }
+      });
+
+      let swipeFilter: any;
+
+      if (session?.userId && !session.isGuest) {
+        // For authenticated users: exclude from ALL their sessions
+        swipeFilter = {
+          session: {
+            userId: session.userId
+          }
+        };
+        console.log(`Filtering by user ID: ${session.userId} (authenticated)`);
+      } else {
+        // For guest users: only exclude from current session
+        swipeFilter = { sessionId };
+        console.log(`Filtering by session ID: ${sessionId} (guest)`);
+      }
+
+      // If onlyExcludeLiked is true, only exclude LIKE actions, allowing SKIP to be shown again
+      if (onlyExcludeLiked) {
+        swipeFilter.action = "LIKE";
+      }
+
+      const swipedDestinations = await prisma.swipeEvent.findMany({
+        where: swipeFilter,
+        select: { destinationId: true },
+      });
+
+      const swipedDestinationIds = swipedDestinations.map(
+        (event: any) => event.destinationId
+      );
+
+      if (swipedDestinationIds.length > 0) {
+        whereClause.id = {
+          notIn: swipedDestinationIds,
+        };
+      }
+
+      const excludeType = onlyExcludeLiked ? "liked" : "already-swiped";
+      const userType = session?.userId && !session.isGuest ? "authenticated user" : "guest session";
+      console.log(
+        `Excluding ${swipedDestinationIds.length} ${excludeType} destinations for ${userType} (${sessionId})`
+      );
+    }
+
+    // Apply preference-based filtering
+    if (preferences) {
+      if (preferences.budgetBand) {
+        whereClause.budgetBand = preferences.budgetBand.toUpperCase();
+      }
+
+      if (preferences.moodTags && preferences.moodTags.length > 0) {
+        // Check if any of the user's mood tags match destination tags
+        // Note: destination tags are stored as lowercase strings in the database
+        whereClause.tags = {
+          hasSome: preferences.moodTags,
+        };
+      }
+    }
+
+    console.log(
+      "Database query WHERE clause:",
+      JSON.stringify(whereClause, null, 2)
+    );
+
+    const destinations = await prisma.destination.findMany({
+      where: whereClause,
+      orderBy: {
+        updatedAt: "desc", // Simple ordering, could be improved with popularity scores
+      },
+      take: 20, // Limit to reasonable number
+      select: {
+        id: true,
+        nameTh: true,
+        nameEn: true,
+        descTh: true,
+        imageUrl: true,
+        tags: true,
+        budgetBand: true,
+        latitude: true,
+        longitude: true,
+        address: true,
+        district: true,
+      },
+    });
+
+    console.log(`Found ${destinations.length} destinations from database`);
+
+    return destinations.map((dest: any) =>
+      toRecommendationItem(dest as DatabaseDestination)
+    );
+  } catch (error) {
+    console.error("Failed to fetch destinations from database:", error);
+    return [];
+  }
+}
+
+/**
+ * Get popular recommendations fallback with session-based exclusion
+ */
+async function getPopularRecommendations(
+  sessionId?: string,
+  onlyExcludeLiked = false
+): Promise<RecommendationItem[]> {
+  try {
+    // Call the new popular recommendations endpoint with sessionId for duplicate prevention
     const baseUrl = process.env.VERCEL_URL
       ? `https://${process.env.VERCEL_URL}`
-      : 'http://localhost:3000';
+      : "http://localhost:3000";
 
-    const response = await fetch(`${baseUrl}/api/recommendations/popular?limit=10`);
+    let url = `${baseUrl}/api/recommendations/popular?limit=10`;
+    if (sessionId) {
+      url += `&sessionId=${sessionId}`;
+    }
+    if (onlyExcludeLiked) {
+      url += `&includeSkipped=true`;
+    }
+
+    const response = await fetch(url);
 
     if (!response.ok) {
       throw new Error(`Popular recommendations API failed: ${response.status}`);
@@ -73,108 +237,97 @@ async function getPopularRecommendations(): Promise<RecommendationItem[]> {
 
     const data = await response.json();
     return data.items || [];
-
   } catch (error) {
-    console.error('Failed to fetch popular recommendations, using local fallback:', error);
+    console.error(
+      "Failed to fetch popular recommendations, using database fallback:",
+      error
+    );
 
-    // Local fallback if the API call fails
-    const popular = destinations
-      .slice()
-      .sort((a, b) => b.popularityScore - a.popularityScore)
-      .slice(0, 10)
-      .map(toRecommendationItem);
-
-    return popular;
+    // Database fallback - use database with session exclusion
+    return await getDestinationsFromDatabase(undefined, sessionId);
   }
 }
 
 /**
- * Main recommendation logic
+ * Main recommendation logic using database
  */
 async function getRecommendations(
   sessionId: string,
-  preferences: PreferencesFilter
+  preferences: any,
+  onlyExcludeLiked = false
 ): Promise<{ items: RecommendationItem[]; isFastMode: boolean }> {
   const startTime = Date.now();
 
   try {
-    // Step 1: Filter destinations based on preferences
-    const filtered = filterDestinations(destinations, preferences);
+    // Step 1: Get filtered destinations from database based on preferences
+    const filtered = await getDestinationsFromDatabase(preferences, sessionId, onlyExcludeLiked);
 
-    // Step 2: Sort by popularity
-    const sorted = sortByPopularity(filtered);
-
-    // Step 3: Apply diversity rule
-    const diversified = applyDiversityRule(sorted);
-
-    // Step 4: Convert to response format and limit to reasonable number
-    const items = diversified.slice(0, 12).map(toRecommendationItem);
-
-    // Step 5: Check if we need fallback
+    // Step 2: Check if we have enough results
     let isFastMode = false;
-    let finalItems = items;
+    let finalItems = filtered;
 
-    if (items.length < 6) {
-      // Not enough filtered results, use popular fallback
-      const popular = await getPopularRecommendations();
+    if (filtered.length < 3) {
+      // Not enough filtered results, use popular fallback with session exclusion
+      const popular = await getPopularRecommendations(sessionId, onlyExcludeLiked);
       finalItems = popular.slice(0, 10);
       isFastMode = true;
+
+      console.log("[Analytics] recs_request:", {
+        sessionId,
+        message: "Not enough filtered results, using popular fallback",
+        filteredCount: filtered.length,
+      });
+    } else {
+      finalItems = filtered.slice(0, 12); // Limit to 12 items
+
+      console.log("[Analytics] recs_request:", {
+        sessionId,
+        filteredCount: filtered.length,
+        preferences,
+      });
     }
 
     const endTime = Date.now();
     const duration = endTime - startTime;
 
-    // Log analytics
-    const metrics = getFilterMetrics(destinations, filtered, preferences);
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Analytics] recs_request:', {
-        sessionId,
-        filterCounts: {
-          total: metrics.total,
-          filtered: metrics.filtered,
-          budgetMatches: metrics.budgetMatches,
-          timeMatches: metrics.timeMatches,
-          moodMatches: metrics.moodMatches
-        },
-        preferences: metrics.preferences
-      });
-
-      console.log('[Analytics] recs_response:', {
+    if (process.env.NODE_ENV === "development") {
+      console.log("[Analytics] recs_response:", {
         sessionId,
         count: finalItems.length,
         duration: `${duration}ms`,
         isFastMode,
-        requestId: generateRequestId()
+        preferences,
       });
     }
 
     return { items: finalItems, isFastMode };
-
   } catch (error) {
-    console.error('Error in getRecommendations:', error);
+    console.error("Recommendation generation failed:", error);
 
-    // Fallback to popular on any error
-    const popular = await getPopularRecommendations();
+    // Fallback to popular recommendations with session exclusion
+    const popular = await getPopularRecommendations(sessionId, onlyExcludeLiked);
     return { items: popular.slice(0, 10), isFastMode: true };
   }
 }
 
-export async function GET(request: NextRequest): Promise<NextResponse<RecommendationsResponse | ErrorResponse>> {
+export async function GET(
+  request: NextRequest
+): Promise<NextResponse<RecommendationsResponse | ErrorResponse>> {
   const requestId = generateRequestId();
   const startTime = Date.now();
 
   try {
     const { searchParams } = new URL(request.url);
-    const sessionId = searchParams.get('sessionId');
+    const sessionId = searchParams.get("sessionId");
+    const includeSkipped = searchParams.get("includeSkipped") === "true";
 
     if (!sessionId) {
       const errorResponse: ErrorResponse = {
         error: {
-          code: 'BAD_REQUEST',
-          message: 'sessionId query parameter is required'
+          code: "BAD_REQUEST",
+          message: "sessionId query parameter is required",
         },
-        request_id: requestId
+        request_id: requestId,
       };
       return NextResponse.json(errorResponse, { status: 400 });
     }
@@ -182,69 +335,64 @@ export async function GET(request: NextRequest): Promise<NextResponse<Recommenda
     // Get user preferences
     let preferences = await getUserPreferences(sessionId);
 
-    // If no preferences found, use default/popular recommendations
+    // If no preferences found, use default/popular recommendations with session exclusion
     if (!preferences) {
-      const items = await getPopularRecommendations();
+      const items = await getPopularRecommendations(sessionId, includeSkipped);
       const response: RecommendationsResponse = {
         items: items.slice(0, 10),
         isFastMode: true,
-        request_id: requestId
+        request_id: requestId,
       };
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[Analytics] recs_request:', {
+      if (process.env.NODE_ENV === "development") {
+        console.log("[Analytics] recs_request:", {
           sessionId,
-          message: 'No preferences found, using popular fallback'
+          message: "No preferences found, using popular fallback",
         });
       }
 
       return NextResponse.json(response, { status: 200 });
     }
 
-    // Use cache wrapper for the main recommendation logic
-    const result = await withCache(
-      () => getRecommendations(sessionId, preferences!),
-      sessionId,
-      preferences
-    );
+    // Get recommendations based on preferences
+    const result = await getRecommendations(sessionId, preferences, includeSkipped);
 
     const response: RecommendationsResponse = {
       items: result.items,
       isFastMode: result.isFastMode,
-      request_id: requestId
+      request_id: requestId,
     };
 
     const duration = Date.now() - startTime;
 
     // Log final response analytics
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Analytics] recs_api_response:', {
+    if (process.env.NODE_ENV === "development") {
+      console.log("[Analytics] recs_api_response:", {
         sessionId,
         totalDuration: `${duration}ms`,
         itemCount: result.items.length,
         isFastMode: result.isFastMode,
-        requestId
+        requestId,
       });
     }
 
     return NextResponse.json(response, { status: 200 });
-
   } catch (error) {
-    console.error('Error in recommendations API:', error);
+    console.error("Error in recommendations API:", error);
 
     const errorResponse: ErrorResponse = {
       error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'Failed to get recommendations'
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to get recommendations",
       },
-      request_id: requestId
+      request_id: requestId,
     };
 
     // Log error analytics
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Analytics] recs_api_error:', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        requestId
+    if (process.env.NODE_ENV === "development") {
+      console.log("[Analytics] recs_api_error:", {
+        error: error instanceof Error ? error.message : "Unknown error",
+        requestId,
       });
     }
 
